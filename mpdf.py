@@ -6,6 +6,16 @@ def clean_path(path_str):
     """Limpia basura de PowerShell como el '&' y comillas extras"""
     return path_str.strip().lstrip('&').strip().strip("'").strip('"')
 
+def parse_paths(raw_paths):
+    """
+    Convierte una entrada como:
+    "C:\\a.pdf", "C:\\b.pdf"
+    o rutas pegadas con comillas / arrastradas desde PowerShell
+    en una lista de Path limpios.
+    """
+    parts = [p.strip() for p in raw_paths.split(",") if p.strip()]
+    return [Path(clean_path(p)) for p in parts]
+
 def parse_range(range_str):
     """Convierte '1-3, 5' (entrada humana) en [0, 1, 2, 4] (índice Python)"""
     pages = set()
@@ -22,11 +32,63 @@ def parse_range(range_str):
             pages.add(int(part) - 1)
     return sorted(list(pages))
 
+def merge_pdfs(input_paths, output_path):
+    """Une varios PDFs en el orden dado y guarda un solo archivo"""
+    writer = PdfWriter()
+
+    for pdf_path in input_paths:
+        if not pdf_path.exists():
+            print(f"❌ No existe: {pdf_path}")
+            return
+
+        reader = PdfReader(pdf_path)
+        for page in reader.pages:
+            writer.add_page(page)
+
+    with open(output_path, "wb") as f:
+        writer.write(f)
+
+    print(f"\n✅ ¡Merge listo! Guardado en: {output_path}")
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input", help="Ruta al PDF")
     parser.add_argument("-p", "--pages", help="Páginas (0-2,5)")
     args = parser.parse_args()
+
+    mode = input(
+        "¿Qué quieres hacer?\n"
+        "1) Extraer páginas de un PDF\n"
+        "2) Unir varios PDFs\n"
+        "Elige [1/2]: "
+    ).strip() or "1"
+
+    if mode == "2":
+        raw_inputs = input("📚 Arrastra aquí los PDFs en orden, separados por comas: ")
+        input_paths = parse_paths(raw_inputs)
+
+        if not input_paths:
+            print("❌ No se recibieron PDFs.")
+            return
+
+        for p in input_paths:
+            if not p.exists():
+                print(f"❌ No existe: {p}")
+                return
+
+        default_name = f"MERGED_{input_paths[0].stem}.pdf"
+        user_output = input(f"💾 Nombre del archivo [{default_name}]: ").strip()
+        final_name = user_output if user_output else default_name
+        if not final_name.endswith(".pdf"):
+            final_name += ".pdf"
+
+        default_folder = input_paths[0].parent
+        user_folder = input(f"📂 Carpeta de destino [{default_folder}]: ").strip()
+        final_folder = Path(clean_path(user_folder)) if user_folder else default_folder
+
+        final_output_path = final_folder / final_name
+        merge_pdfs(input_paths, final_output_path)
+        return
 
     # 1. Obtener Archivo de Entrada
     raw_input = args.input or input("📄 Arrastra el PDF aquí: ")
