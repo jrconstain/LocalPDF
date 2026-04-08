@@ -43,15 +43,39 @@ def parse_range(range_str):
             pages.add(int(part) - 1)
     return sorted(list(pages))
 
+def collect_pdf_paths():
+    """Pide PDFs uno por uno hasta que el usuario dé Enter vacío"""
+    pdf_paths = []
+
+    print("\n📚 Arrastra los PDFs UNO POR UNO en el orden deseado.")
+    print("↩️ Cuando termines, simplemente presiona Enter en blanco.\n")
+
+    while True:
+        raw = input(f"PDF #{len(pdf_paths) + 1}: ").strip()
+
+        if not raw:
+            break
+
+        pdf_path = Path(clean_path(raw))
+
+        if not pdf_path.exists():
+            print(f"❌ No existe: {pdf_path}")
+            continue
+
+        if pdf_path.suffix.lower() != ".pdf":
+            print(f"❌ No es un PDF: {pdf_path}")
+            continue
+
+        pdf_paths.append(pdf_path)
+        print(f"✅ Añadido: {pdf_path.name}")
+
+    return pdf_paths
+
 def merge_pdfs(input_paths, output_path):
     """Une varios PDFs en el orden dado y guarda un solo archivo"""
     writer = PdfWriter()
 
     for pdf_path in input_paths:
-        if not pdf_path.exists():
-            print(f"❌ No existe: {pdf_path}")
-            return
-
         reader = PdfReader(pdf_path)
         for page in reader.pages:
             writer.add_page(page)
@@ -61,10 +85,11 @@ def merge_pdfs(input_paths, output_path):
 
     print(f"\n✅ ¡Merge listo! Guardado en: {output_path}")
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input", help="Ruta al PDF")
-    parser.add_argument("-p", "--pages", help="Páginas (0-2,5)")
+    parser.add_argument("-p", "--pages", help="Páginas (ej: 1-3,5)")
     args = parser.parse_args()
 
     mode = input(
@@ -75,20 +100,18 @@ def main():
     ).strip() or "1"
 
     if mode == "2":
-        raw_inputs = input("📚 Arrastra aquí los PDFs en orden, separados por comas: ")
-        input_paths = parse_paths(raw_inputs)
+        input_paths = collect_pdf_paths()
 
-        if not input_paths:
-            print("❌ No se recibieron PDFs.")
+        if len(input_paths) < 2:
+            print("❌ Debes añadir al menos 2 PDFs para hacer merge.")
             return
 
-        for p in input_paths:
-            if not p.exists():
-                print(f"❌ No existe: {p}")
-                return
+        print("\n📑 Orden final del merge:")
+        for i, p in enumerate(input_paths, start=1):
+            print(f"   {i}. {p.name}")
 
         default_name = f"MERGED_{input_paths[0].stem}.pdf"
-        user_output = input(f"💾 Nombre del archivo [{default_name}]: ").strip()
+        user_output = input(f"\n💾 Nombre del archivo [{default_name}]: ").strip()
         final_name = user_output if user_output else default_name
         if not final_name.endswith(".pdf"):
             final_name += ".pdf"
