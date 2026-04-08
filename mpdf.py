@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 from pypdf import PdfReader, PdfWriter
+import re
 
 def clean_path(path_str):
     """Limpia basura de PowerShell como el '&' y comillas extras"""
@@ -8,11 +9,21 @@ def clean_path(path_str):
 
 def parse_paths(raw_paths):
     """
-    Convierte una entrada como:
+    Soporta varios formatos típicos al arrastrar múltiples PDFs en PowerShell, por ejemplo:
+    & 'C:\\a.pdf'& 'C:\\b.pdf'
     "C:\\a.pdf", "C:\\b.pdf"
-    o rutas pegadas con comillas / arrastradas desde PowerShell
-    en una lista de Path limpios.
+    'C:\\a.pdf', 'C:\\b.pdf'
     """
+    raw_paths = raw_paths.strip()
+
+    # 1) Intentar extraer todas las rutas entre comillas simples o dobles
+    quoted_paths = re.findall(r"'([^']+\.pdf)'|\"([^\"]+\.pdf)\"", raw_paths, flags=re.IGNORECASE)
+    paths = [Path(p1 or p2) for p1, p2 in quoted_paths if (p1 or p2)]
+
+    if paths:
+        return paths
+
+    # 2) Fallback: separar por comas
     parts = [p.strip() for p in raw_paths.split(",") if p.strip()]
     return [Path(clean_path(p)) for p in parts]
 
